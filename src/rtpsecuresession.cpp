@@ -35,18 +35,16 @@
 #ifdef RTP_SUPPORT_SRTP
 
 #include "rtprawpacket.h"
+#ifdef RTP_SUPPORT_THREAD
+	#include <jthread/jmutexautolock.h>
+#endif // RTP_SUPPORT_THREAD
 #include <srtp/srtp.h>
 #include <iostream>
 #include <vector>
 
 using namespace std;
-
 #ifdef RTP_SUPPORT_THREAD
-
-#include <jthread/jmutexautolock.h>
-
-using namespace jthread;
-
+	using namespace jthread;
 #endif // RTP_SUPPORT_THREAD
 
 namespace jrtplib
