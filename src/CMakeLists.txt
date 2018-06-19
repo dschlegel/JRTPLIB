@@ -123,6 +123,10 @@ set_target_properties(jrtplib PROPERTIES
 
 target_compile_definitions(jrtplib PRIVATE JRTPLIB_COMPILING)
 
+target_compile_features(jrtplib
+                        PRIVATE cxx_long_long_type
+                        PUBLIC cxx_std_98)
+
 option(JRTPLIB_WARNINGSASERRORS "Enable \"-Wall -Wextra -Werror -pedantic\" / \"/W4 /WX\"" ON)
 if (JRTPLIB_WARNINGSASERRORS)
     target_compile_options(jrtplib PRIVATE
