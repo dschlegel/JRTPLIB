@@ -1,13 +1,6 @@
-cmake_minimum_required(VERSION 2.8)
-if (POLICY CMP0042)
-	cmake_policy(SET CMP0042 NEW)
-endif()
+cmake_minimum_required(VERSION 3.1)
 
-project(jrtplib)
-set(VERSION_MAJOR 3)
-set(VERSION_MINOR 11)
-set(VERSION_DEBUG 1)
-set(VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_DEBUG}")
+project(jrtplib VERSION 3.11.1 LANGUAGES CXX)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
 if (CMAKE_INSTALL_PREFIX AND NOT CMAKE_PREFIX_PATH)
@@ -15,17 +8,7 @@ if (CMAKE_INSTALL_PREFIX AND NOT CMAKE_PREFIX_PATH)
     file(TO_CMAKE_PATH "${CMAKE_INSTALL_PREFIX}" CMAKE_PREFIX_PATH)
 endif()
 
-set (_DEFAULT_LIBRARY_INSTALL_DIR lib)
-if (EXISTS "${CMAKE_INSTALL_PREFIX}/lib32/" AND CMAKE_SIZEOF_VOID_P EQUAL 4)
-	set (_DEFAULT_LIBRARY_INSTALL_DIR lib32)
-elseif (EXISTS "${CMAKE_INSTALL_PREFIX}/lib64/" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-	set (_DEFAULT_LIBRARY_INSTALL_DIR lib64)
-endif ()
-
-set(LIBRARY_INSTALL_DIR "${_DEFAULT_LIBRARY_INSTALL_DIR}" CACHE PATH "Library installation directory")
-if(NOT IS_ABSOLUTE "${LIBRARY_INSTALL_DIR}")
-	set(LIBRARY_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${LIBRARY_INSTALL_DIR}")
-endif()
+include(GNUInstallDirs)
 
 include(CheckCXXCompilerFlag)
 include(CheckIncludeFile)
@@ -34,13 +17,9 @@ include(CheckCXXSourceCompiles)
 include(TestBigEndian)
 include(${PROJECT_SOURCE_DIR}/cmake/Macros.cmake)
 
-find_package(JThread)
-
 set(JRTPLIB_LINK_LIBS "")
 set(JRTPLIB_INTERNAL_INCLUDES "")
 set(JRTPLIB_EXTERNAL_INCLUDES "")
-
-add_additional_stuff(JRTPLIB_EXTERNAL_INCLUDES JRTPLIB_LINK_LIBS)
 
 jrtplib_support_option("Support SDES PRIV items" JRTPLIB_SUPPORT_SDESPRIV RTP_SUPPORT_SDESPRIV ON "// No support for SDES PRIV items")
 jrtplib_support_option("Support the probation mechanism for a new source" JRTPLIB_SUPPORT_PROBATION RTP_SUPPORT_PROBATION ON "// Do not wait for a number of consecutive packets to validate source")
@@ -52,37 +31,20 @@ jrtplib_include_test(sys/filio.h RTP_HAVE_SYS_FILIO "// Don't have <sys/filio.h>
 jrtplib_include_test(sys/sockio.h RTP_HAVE_SYS_SOCKIO "// Don't have <sys/sockio.h>")
 jrtplib_include_test(netinet/in.h RTP_SUPPORT_NETINET_IN "// Don't have <netinet/in.h>")
 
-if (JTHREAD_FOUND)
-	set(V "ON")
-else (JTHREAD_FOUND)
-	set(V "OFF")
-endif (JTHREAD_FOUND)
-
-option(JTHREAD_ENABLED "Thread support" ${V})
+option(JTHREAD_ENABLED "Thread support" OFF)
 if (JTHREAD_ENABLED)
+    find_package(JThread CONFIG QUIET REQUIRED)
 	set (RTP_SUPPORT_THREAD "#define RTP_SUPPORT_THREAD")
-	if (JTHREAD_FOUND)
-		save_paths(JRTPLIB_EXTERNAL_INCLUDES "${JTHREAD_INCLUDE_DIRS}")
-		save_paths(JRTPLIB_LINK_LIBS "${JTHREAD_LIBRARIES}")
-	endif(JTHREAD_FOUND)
+    list(APPEND JRTPLIB_LINK_LIBS JThread::JThread)
 else (JTHREAD_ENABLED)
 	set (RTP_SUPPORT_THREAD "// No support for JThread was enabled")
 endif (JTHREAD_ENABLED)
 
-find_package(LIBSRTP)
-if (LIBSRTP_FOUND)
-	set(V "ON")
-else (LIBSRTP_FOUND)
-	set(V "OFF")
-endif (LIBSRTP_FOUND)
-
-option(SRTP_ENABLED "Secure RTP (SRTP) support" ${V})
+option(SRTP_ENABLED "Secure RTP (SRTP) support" OFF)
 if (SRTP_ENABLED)
+    find_package(LIBSRTP CONFIG QUIET REQUIRED)
 	set(RTP_SUPPORT_SRTP "#define RTP_SUPPORT_SRTP")
-	if (LIBSRTP_FOUND)
-		save_paths(JRTPLIB_EXTERNAL_INCLUDES "${LIBSRTP_INCLUDE_DIR}")
-		save_paths(JRTPLIB_LINK_LIBS "${LIBSRTP_LIBRARY_DIR}")
-	endif (LIBSRTP_FOUND)
+    list(APPEND JRTPLIB_LINK_LIBS srtp::srtp)
 else (SRTP_ENABLED)
 	set(RTP_SUPPORT_SRTP "// No SRTP support")
 endif (SRTP_ENABLED)
@@ -102,8 +64,6 @@ else (CMAKE_CROSSCOMPILING)
 		set(RTP_ENDIAN "// Little endian system")
 	endif (JRTPLIB_BIGENDIAN)
 endif (CMAKE_CROSSCOMPILING)
-
-option(JRTPLIB_COMPILE_TESTS "Compile various tests in the 'tests' subdirectory" NO)
 
 # Check winsock first
 set(TESTDEFS "")
@@ -179,52 +139,39 @@ else ()
 	set(JRTPLIB_EXPORT "__declspec(dllexport)")
 endif ()
 
-configure_file("${PROJECT_SOURCE_DIR}/src/rtptypes.h.in" "${PROJECT_BINARY_DIR}/src/rtptypes.h")
-configure_file("${PROJECT_SOURCE_DIR}/src/rtpconfig.h.in" "${PROJECT_BINARY_DIR}/src/rtpconfig.h")
-configure_file("${PROJECT_SOURCE_DIR}/src/rtplibraryversioninternal.h.in" "${PROJECT_BINARY_DIR}/src/rtplibraryversioninternal.h")
+configure_file("${PROJECT_SOURCE_DIR}/src/rtptypes.h.in"
+               "${PROJECT_BINARY_DIR}/src/rtptypes.h"
+               @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/src/rtpconfig.h.in"
+               "${PROJECT_BINARY_DIR}/src/rtpconfig.h"
+               @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/src/rtplibraryversioninternal.h.in"
+               "${PROJECT_BINARY_DIR}/src/rtplibraryversioninternal.h"
+                @ONLY)
 
 save_paths(JRTPLIB_INTERNAL_INCLUDES "${PROJECT_SOURCE_DIR}/src" "${PROJECT_BINARY_DIR}/src")
 
 add_subdirectory(src)
 add_subdirectory(examples)
 
+option(JRTPLIB_COMPILE_TESTS "Compile various tests in the 'tests' subdirectory" OFF)
 if (JRTPLIB_COMPILE_TESTS)
 	add_subdirectory(tests)
 endif()
 
-if (NOT MSVC)
-	set(JRTPLIB_LIBS "-L${LIBRARY_INSTALL_DIR}" "-ljrtp")
-else ()
-	set(JRTPLIB_LIBS optimized "${LIBRARY_INSTALL_DIR}/jrtplib.lib" 
-		         debug "${LIBRARY_INSTALL_DIR}/jrtplib_d.lib")
-endif ()
+#configure_file("${PROJECT_SOURCE_DIR}/cmake/JRTPLIBConfig.cmake.in" "${PROJECT_BINARY_DIR}/cmake/JRTPLIBConfig.cmake")
+#install(FILES "${PROJECT_BINARY_DIR}/cmake/JRTPLIBConfig.cmake" DESTINATION ${LIBRARY_INSTALL_DIR}/cmake/JRTPLIB)
 
-set(JRTPLIB_INCDIRS ${JRTPLIB_EXTERNAL_INCLUDES} ${CMAKE_INSTALL_PREFIX}/include)
-set(JRTPLIB_LIBS ${JRTPLIB_LIBS} ${JRTPLIB_LINK_LIBS})
-remove_empty(JRTPLIB_INCDIRS)
-list(REMOVE_DUPLICATES JRTPLIB_INCDIRS)
-remove_empty(JRTPLIB_LIBS)
-
-foreach(ARG ${JRTPLIB_LIBS})
-	set(JRTPLIB_LIBS_CMAKECONFIG "${JRTPLIB_LIBS_CMAKECONFIG} \"${ARG}\"")
-endforeach()
-foreach(ARG ${JRTPLIB_INCDIRS})
-	set(JRTPLIB_INCDIRS_CMAKECONFIG "${JRTPLIB_INCDIRS_CMAKECONFIG} \"${ARG}\"")
-endforeach()
-
-configure_file("${PROJECT_SOURCE_DIR}/cmake/JRTPLIBConfig.cmake.in" "${PROJECT_BINARY_DIR}/cmake/JRTPLIBConfig.cmake")
-install(FILES "${PROJECT_BINARY_DIR}/cmake/JRTPLIBConfig.cmake" DESTINATION ${LIBRARY_INSTALL_DIR}/cmake/JRTPLIB)
-
-if (NOT MSVC)
-	foreach(ARG ${JRTPLIB_LIBS})
-		set(JRTPLIB_LIBS_PKGCONFIG "${JRTPLIB_LIBS_PKGCONFIG} ${ARG}")
-	endforeach()
-	foreach(ARG ${JRTPLIB_INCDIRS})
-		set(JRTPLIB_INCDIRS_PKGCONFIG "${JRTPLIB_INCDIRS_PKGCONFIG} -I${ARG}")
-	endforeach()
-
-	configure_file(${PROJECT_SOURCE_DIR}/pkgconfig/jrtplib.pc.in ${PROJECT_BINARY_DIR}/pkgconfig/jrtplib.pc)
-	install(FILES ${PROJECT_BINARY_DIR}/pkgconfig/jrtplib.pc DESTINATION ${LIBRARY_INSTALL_DIR}/pkgconfig)
-endif ()
+#if (NOT MSVC)
+#	foreach(ARG ${JRTPLIB_LIBS})
+#		set(JRTPLIB_LIBS_PKGCONFIG "${JRTPLIB_LIBS_PKGCONFIG} ${ARG}")
+#	endforeach()
+#	foreach(ARG ${JRTPLIB_INCDIRS})
+#		set(JRTPLIB_INCDIRS_PKGCONFIG "${JRTPLIB_INCDIRS_PKGCONFIG} -I${ARG}")
+#	endforeach()
+#
+#	configure_file(${PROJECT_SOURCE_DIR}/pkgconfig/jrtplib.pc.in ${PROJECT_BINARY_DIR}/pkgconfig/jrtplib.pc)
+#	install(FILES ${PROJECT_BINARY_DIR}/pkgconfig/jrtplib.pc DESTINATION ${LIBRARY_INSTALL_DIR}/pkgconfig)
+#endif ()
 
 

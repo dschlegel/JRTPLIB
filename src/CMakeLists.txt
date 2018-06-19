@@ -1,5 +1,3 @@
-add_definitions(-DJRTPLIB_COMPILING)
-
 set (HEADERS
 	rtcpapppacket.h
 	rtcpbyepacket.h
@@ -112,42 +110,45 @@ if (MSVC)
 	set(CMAKE_DEBUG_POSTFIX _d)
 endif ()
 
-# Enable extra compiler warnings and mark warnings as errors: -Wall -Wextra -Werror
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_GNUCC)
-	option(JRTPLIB_WARNINGSASERRORS "Enable -Wall -Wextra -Werror" ON)
-	if (JRTPLIB_WARNINGSASERRORS)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
-	endif ()
-endif(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_GNUCC)
+if (JRTPLIB_COMPILE_STATIC)
+	add_library(jrtplib STATIC ${SOURCES})
+else (JRTPLIB_COMPILE_STATIC)
+    add_library(jrtplib SHARED ${SOURCES})
+endif()
 
-if (NOT MSVC OR JRTPLIB_COMPILE_STATIC)
-	add_library(jrtplib-static STATIC ${SOURCES} ${HEADERS})
-	if (NOT MSVC)
-		set_target_properties(jrtplib-static PROPERTIES OUTPUT_NAME jrtp)
-	else ()
-		set_target_properties(jrtplib-static PROPERTIES OUTPUT_NAME jrtplib)
-	endif()
-	set_target_properties(jrtplib-static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-	set(JRTPLIB_INSTALLTARGETS jrtplib-static)
-	target_link_libraries(jrtplib-static ${JRTPLIB_LINK_LIBS})
-endif (NOT MSVC OR JRTPLIB_COMPILE_STATIC)
+set_target_properties(jrtplib PROPERTIES
+                      OUTPUT_NAME "jrtp"
+                      VERSION ${PROJECT_VERSION}
+                      SOVERSION ${PROJECT_VERSION_MAJOR})
 
-if (NOT MSVC OR NOT JRTPLIB_COMPILE_STATIC)
-	add_library(jrtplib-shared SHARED ${SOURCES} ${HEADERS})
-	if (NOT MSVC)
-		set_target_properties(jrtplib-shared PROPERTIES OUTPUT_NAME jrtp)
-	else ()
-		set_target_properties(jrtplib-shared PROPERTIES OUTPUT_NAME jrtplib)
-	endif()
-	set_target_properties(jrtplib-shared PROPERTIES VERSION ${VERSION})
-	set_target_properties(jrtplib-shared PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-	set(JRTPLIB_INSTALLTARGETS ${JRTPLIB_INSTALLTARGETS} jrtplib-shared)
-	target_link_libraries(jrtplib-shared ${JRTPLIB_LINK_LIBS})
-endif (NOT MSVC OR NOT JRTPLIB_COMPILE_STATIC)
+target_compile_definitions(jrtplib PRIVATE JRTPLIB_COMPILING)
 
-apply_include_paths("${JRTPLIB_INTERNAL_INCLUDES}")
-apply_include_paths("${JRTPLIB_EXTERNAL_INCLUDES}")
+option(JRTPLIB_WARNINGSASERRORS "Enable \"-Wall -Wextra -Werror -pedantic\" / \"/W4 /WX\"" ON)
+if (JRTPLIB_WARNINGSASERRORS)
+    target_compile_options(jrtplib PRIVATE
+                           $<$<CXX_COMPILER_ID:GNU>:-Wall -Wextra -Werror -pedantic>
+                           $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>)
+endif(JRTPLIB_WARNINGSASERRORS)
 
-install(FILES ${HEADERS} DESTINATION include/jrtplib3)
-install(TARGETS ${JRTPLIB_INSTALLTARGETS} DESTINATION ${LIBRARY_INSTALL_DIR})
+target_include_directories(jrtplib PUBLIC
+                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+                           $<INSTALL_INTERFACE:include/>)
 
+target_link_libraries(jrtplib ${JRTPLIB_LINK_LIBS})
+
+set_target_properties(jrtplib PROPERTIES
+                      PUBLIC_HEADER "${HEADERS}")
+
+install(TARGETS jrtplib
+        EXPORT jrtplib-export
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        PUBLIC_HEADER DESTINATION include/jrptlib${PROJECT_VERSION_MAJOR})
+
+install(EXPORT jrtplib-export
+        NAMESPACE jrtplib::
+        CONFIGURATIONS Debug Release RelWithDebInfo MinSizeRel
+        FILE jrtplib-config.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/jrtplib)
